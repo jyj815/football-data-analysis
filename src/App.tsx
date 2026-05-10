@@ -14,7 +14,7 @@ import { PredictionChart } from './components/PredictionChart';
 import type { Match, OddsData, SupportRate, KellyValue, TabType } from './types';
 import { generateKellyValue } from './utils/calculations';
 import { generatePrediction } from './services/predictionService';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 
 function createOddsHistoryFromTwoPoints(initial: { home: number; draw: number; away: number }, current: { home: number; draw: number; away: number }) {
   const history = [];
@@ -54,19 +54,91 @@ function App() {
       exportTime: new Date().toISOString(),
     };
     const dataStr = JSON.stringify(allData, null, 2);
-    const fileName = `football_data_${Date.now()}.json`;
-    
-    const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = fileName;
-    link.target = '_blank';
-    link.click();
-    
-    setTimeout(() => {
-      alert('数据导出完成！\n\n如果文件没有自动保存，请查看浏览器的下载记录。\n\n重要提示：您的数据已自动保存在本地存储中，刷新页面不会丢失。');
-    }, 500);
+    setCurrentExportData(dataStr);
+    setExportType('all');
+    setShowDataModal(true);
   }, [matches, oddsData, supportData, kellyData]);
+
+  const [exportType, setExportType] = useState<'all' | 'matches' | 'odds' | 'support' | 'kelly'>('all');
+
+  const handleChangeExportType = useCallback((type: 'all' | 'matches' | 'odds' | 'support' | 'kelly') => {
+    setExportType(type);
+    let data: any = {};
+    const now = new Date().toISOString();
+    
+    switch (type) {
+      case 'all':
+        data = { matches, oddsData, supportData, kellyData, exportTime: now };
+        break;
+      case 'matches':
+        data = { matches, exportTime: now };
+        break;
+      case 'odds':
+        data = { oddsData, exportTime: now };
+        break;
+      case 'support':
+        data = { supportData, exportTime: now };
+        break;
+      case 'kelly':
+        data = { kellyData, exportTime: now };
+        break;
+    }
+    
+    setCurrentExportData(JSON.stringify(data, null, 2));
+  }, [matches, oddsData, supportData, kellyData]);
+
+  const [currentExportData, setCurrentExportData] = useState('');
+  const [showCodeModal, setShowCodeModal] = useState(false);
+
+  const handleDownloadFile = useCallback(() => {
+    if (!currentExportData) return;
+    try {
+      const fileName = `football_data_${Date.now()}.json`;
+      const blob = new Blob([currentExportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      alert('下载已启动！请查看浏览器下载记录。\n\n如果没有下载，请使用"复制数据"按钮手动保存。');
+    } catch (error) {
+      alert('下载功能在当前环境中不可用，请使用"复制数据"按钮。');
+    }
+  }, [currentExportData]);
+
+  const handleCopyData = useCallback(() => {
+    if (!currentExportData) return;
+    // 尝试使用现代 API
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(currentExportData).then(() => {
+        alert('✅ 数据已复制到剪贴板！');
+      }).catch(() => {
+        fallbackCopy();
+      });
+    } else {
+      fallbackCopy();
+    }
+
+    function fallbackCopy() {
+      // 备用方案：使用传统的 textarea 方式
+      const textarea = document.createElement('textarea');
+      textarea.value = currentExportData;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('✅ 数据已复制到剪贴板！');
+      } catch (err) {
+        alert('❌ 复制失败，请点击文本框后手动复制。');
+      }
+      document.body.removeChild(textarea);
+    }
+  }, [currentExportData]);
 
   const handleImportData = useCallback(() => {
     const input = document.createElement('input');
@@ -639,6 +711,104 @@ function App() {
           away: selectedSupport?.away || 0,
         }}
       />
+
+      {showDataModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDataModal(false)} />
+          <div className="relative bg-bg-secondary rounded-2xl shadow-2xl w-full max-w-2xl border border-bg-tertiary overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-bg-tertiary">
+              <h3 className="text-lg font-bold text-text-primary">导出数据</h3>
+              <button
+                onClick={() => setShowDataModal(false)}
+                className="p-2 rounded-lg hover:bg-bg-tertiary transition-colors"
+              >
+                <X className="w-5 h-5 text-text-muted" />
+              </button>
+            </div>
+            <div className="p-4 border-b border-bg-tertiary">
+              <p className="text-sm text-text-muted mb-3">选择要导出的数据类型（数据量大时建议分开导出）：</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleChangeExportType('all')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    exportType === 'all' 
+                      ? 'bg-accent-blue text-white' 
+                      : 'bg-bg-tertiary text-text-muted hover:bg-bg-tertiary/80'
+                  }`}
+                >
+                  全部数据
+                </button>
+                <button
+                  onClick={() => handleChangeExportType('matches')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    exportType === 'matches' 
+                      ? 'bg-accent-green text-bg-primary' 
+                      : 'bg-bg-tertiary text-text-muted hover:bg-bg-tertiary/80'
+                  }`}
+                >
+                  比赛数据
+                </button>
+                <button
+                  onClick={() => handleChangeExportType('odds')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    exportType === 'odds' 
+                      ? 'bg-accent-purple text-white' 
+                      : 'bg-bg-tertiary text-text-muted hover:bg-bg-tertiary/80'
+                  }`}
+                >
+                  赔率数据
+                </button>
+                <button
+                  onClick={() => handleChangeExportType('support')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    exportType === 'support' 
+                      ? 'bg-accent-yellow text-bg-primary' 
+                      : 'bg-bg-tertiary text-text-muted hover:bg-bg-tertiary/80'
+                  }`}
+                >
+                  支持率数据
+                </button>
+                <button
+                  onClick={() => handleChangeExportType('kelly')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    exportType === 'kelly' 
+                      ? 'bg-accent-red text-white' 
+                      : 'bg-bg-tertiary text-text-muted hover:bg-bg-tertiary/80'
+                  }`}
+                >
+                  凯利数据
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <p className="text-sm text-text-muted mb-2">提示：您可以点击文本框，然后按 Ctrl+A (或 Cmd+A) 全选，再按 Ctrl+C (或 Cmd+C) 复制</p>
+              <textarea
+                value={currentExportData}
+                readOnly
+                onClick={(e) => {
+                  e.target.focus();
+                  e.target.select();
+                }}
+                className="w-full h-64 bg-bg-primary rounded-xl p-3 text-xs font-mono text-text-primary border border-bg-tertiary resize-none cursor-text"
+              />
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t border-bg-tertiary">
+              <button
+                onClick={handleCopyData}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-accent-blue text-white text-sm font-medium hover:bg-accent-blue/90 transition-colors"
+              >
+                复制数据
+              </button>
+              <button
+                onClick={handleDownloadFile}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-accent-green text-bg-primary text-sm font-medium hover:bg-accent-green/90 transition-colors"
+              >
+                下载 JSON 文件
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

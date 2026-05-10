@@ -1,4 +1,4 @@
-import { RefreshCw, Menu } from 'lucide-react';
+import { RefreshCw, Menu, Download } from 'lucide-react';
 import { memo, useState } from 'react';
 
 interface HeaderProps {
@@ -7,9 +7,10 @@ interface HeaderProps {
   showRefresh?: boolean;
   onExport?: () => void;
   onImport?: () => void;
+  onExportCode?: () => void;
 }
 
-export const Header = memo(function Header({ title, onRefresh, showRefresh = true, onExport, onImport }: HeaderProps) {
+export const Header = memo(function Header({ title, onRefresh, showRefresh = true, onExport, onImport, onExportCode }: HeaderProps) {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -63,6 +64,21 @@ export const Header = memo(function Header({ title, onRefresh, showRefresh = tru
                     >
                       导入数据
                     </button>
+                  )}
+                  {onExportCode && (
+                    <>
+                      <div className="border-t border-bg-tertiary/50 my-1" />
+                      <button
+                        onClick={() => {
+                          onExportCode();
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-accent-blue hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        导出代码
+                      </button>
+                    </>
                   )}
                 </div>
               )}
